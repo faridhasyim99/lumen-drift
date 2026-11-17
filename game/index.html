@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LUMEN DRIFT — a 2D arcade game</title>
+<link rel="icon" href="data:,">
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #04061a;
+    height: 100%;
+  }
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  #wrap {
+    text-align: center;
+  }
+  canvas {
+    display: block;
+    width: min(96vw, 1280px);
+    aspect-ratio: 16 / 9;
+    background: #070b24;
+    border: 1px solid #1b2a5e;
+    border-radius: 8px;
+    box-shadow: 0 0 60px rgba(56, 120, 255, 0.25);
+  }
+  p {
+    color: #8ea2c8;
+    font-size: 13px;
+    margin: 10px 0 0;
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="game" width="960" height="540"></canvas>
+  <p>LUMEN DRIFT — collect lumen, dodge void mines, dash with Space or click. P pauses, R restarts, M mutes.</p>
+</div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
