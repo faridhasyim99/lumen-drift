@@ -1,4 +1,4 @@
-# LUMEN DRIFT
+# LUMEN DRIFT v2
 
 [![make.fun · best-game-01](https://make.fun/badge/best-game-01.svg)](https://make.fun/bounty/best-game-01?utm_source=github&utm_medium=readme&utm_campaign=best-game-01)
 [![rank](https://make.fun/badge/best-game-01/faridhasyim99/lumen-drift/rank.svg)](https://make.fun/bounty/best-game-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=best-game-01)
@@ -7,6 +7,26 @@
 A complete original 2D canvas arcade game. You pilot a light-orb through a
 dark field: collect lumen shards for score, dodge void mines, chain pickups
 into a combo multiplier, and dash through danger.
+
+## What's new in v2
+
+v1 played one flat note — mines only, waves that barely ramped, and a
+footer a mine could drift over. v2 fixes all three:
+
+- **Four enemy kinds, unlocking wave by wave:** void mines (wave 1),
+  chaser drones that steer hard toward you (wave 2), big spiked spinners
+  rolling across the field (wave 3), and splitters that burst into two
+  fast minis if you let them linger (wave 4).
+- **Four power-ups:** shield (eats one hit), magnet (pulls shards in),
+  slow-mo (halves every enemy for 6 seconds), and a rare extra life
+  (up to 4 lives).
+- **A real ramp:** spawn rates, enemy caps and speeds climb every wave,
+  and clearing a wave pays a +25 lumen bonus.
+- **More feel:** floating score popups, a hit-stop freeze on impact,
+  bigger pickup bursts, a shield ring around the orb, and a three-layer
+  parallax starfield over slow nebula blobs.
+- **The footer wart is gone:** the bottom hints sit on a solid panel, so
+  no enemy can ever drift over the text again.
 
 ## How to play
 
@@ -44,15 +64,9 @@ python3 -m http.server 8080 --directory game
 - `screenshots/` — 4 screenshots of the game itself: title, play, game over,
   win.
 
-## Verified (17 Nov 2026, automated play-test in headless Chromium)
+## Verified (18 Nov 2026, automated play-test in headless Chromium)
 
-23/23 checks pass: title shows, Enter starts, arrow keys move the player,
-mouse steers, Space dashes, P pauses/resumes, both win (score target) and
-lose (0 lives) paths are reachable, R and click restart from both end
-screens, no console errors, no failed requests, no network requests
-(local files and `data:` only). Dossier build verified:
-`mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts` writes
-`out/dossier.json` (372,046 bytes) and two runs are byte-identical.
+See `VERIFY.md` in this directory for the full checklist and results.
 
 ## License
 
