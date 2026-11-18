@@ -1,4 +1,4 @@
-// LUMEN DRIFT — keyboard and mouse input.
+// LUMEN DRIFT v2 — keyboard and mouse input.
 // One object owns every key and pointer the game cares about. The game loop
 // reads held keys for movement and consumes one-shot actions (dash, pause,
 // restart, start) exactly once per press, so a held key never double-fires.

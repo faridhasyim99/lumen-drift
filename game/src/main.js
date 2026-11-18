@@ -1,4 +1,4 @@
-// LUMEN DRIFT — the loop and the screen flow.
+// LUMEN DRIFT v2 — the loop and the screen flow.
 // main.js wires input, audio, the world and the renderer together, runs the
 // frame loop, and owns the title / playing / paused / win / game-over states.
 // The world owns the rules; this file owns when they run.
@@ -74,7 +74,7 @@ function frame(now) {
 
   if (input.muteRequested()) {
     const muted = audio.toggleMute();
-    document.title = muted ? 'LUMEN DRIFT (muted)' : 'LUMEN DRIFT';
+    document.title = muted ? 'LUMEN DRIFT v2 (muted)' : 'LUMEN DRIFT v2';
   }
 
   if (world.status === 'title') {
@@ -89,6 +89,9 @@ function frame(now) {
         if (event.type === 'hit') audio.hit();
         if (event.type === 'dash') audio.dash();
         if (event.type === 'wave') audio.wave();
+        if (event.type === 'powerup') audio.powerup();
+        if (event.type === 'shieldBreak') audio.shieldBreak();
+        if (event.type === 'split') audio.split();
         if (event.type === 'win') {
           audio.win();
           finishRun();

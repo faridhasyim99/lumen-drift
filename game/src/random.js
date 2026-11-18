@@ -1,4 +1,4 @@
-// LUMEN DRIFT — small deterministic random helpers.
+// LUMEN DRIFT v2 — small deterministic random helpers.
 // The game uses a seeded generator so a screenshot preset can replay the
 // same field, while a normal game seeds from the clock. Nothing here touches
 // Math.random after construction, which keeps the field reproducible.
@@ -33,6 +33,18 @@ export function chance(rng, probability) {
 
 export function angle(rng) {
   return rng() * Math.PI * 2;
+}
+
+// Pick a key from a weights table such as { shield: 30, magnet: 30 }.
+export function weightedPick(rng, weights) {
+  let total = 0;
+  for (const key of Object.keys(weights)) total += weights[key];
+  let roll = rng() * total;
+  for (const key of Object.keys(weights)) {
+    roll -= weights[key];
+    if (roll <= 0) return key;
+  }
+  return Object.keys(weights)[0];
 }
 
 // A point safely inside the field, away from the given centre by at least

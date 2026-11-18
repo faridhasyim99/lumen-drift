@@ -1,8 +1,13 @@
-// LUMEN DRIFT — everything the player sees.
+// LUMEN DRIFT v2 — everything the player sees.
 // The renderer draws the field, the entities, the HUD and every screen from
 // the world's state. It never changes the world; it only reads it.
+//
+// v2's look: a three-layer parallax starfield over slow nebula blobs, four
+// enemy kinds with their own silhouettes, power-ups with readable icons, and
+// a solid panel behind the footer hints — in v1 a mine could drift over the
+// "M MUTE" text, which that panel now makes impossible.
 
-import { VIEW, COLORS, SCORE_TARGET } from './config.js';
+import { VIEW, COLORS, SCORE_TARGET, PLAYER } from './config.js';
 
 export function createRenderer(canvas) {
   canvas.width = VIEW.width;
@@ -40,6 +45,39 @@ export function createRenderer(canvas) {
     gradient.addColorStop(1, '#050718');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, VIEW.width, VIEW.height);
+
+    // Slow nebula blobs for depth.
+    for (const nebula of world.nebulas) {
+      const wobbleX = Math.sin(world.time * 0.05 + nebula.drift) * 8;
+      const wobbleY = Math.cos(world.time * 0.04 + nebula.drift) * 6;
+      const glow = ctx.createRadialGradient(
+        nebula.x + wobbleX, nebula.y + wobbleY, 10,
+        nebula.x + wobbleX, nebula.y + wobbleY, nebula.radius,
+      );
+      glow.addColorStop(0, nebula.color);
+      glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(nebula.x - nebula.radius, nebula.y - nebula.radius, nebula.radius * 2, nebula.radius * 2);
+    }
+
+    // Parallax starfield: far stars are dim and slow, near stars bright
+    // and quick, each twinkling on its own phase.
+    const layers = [
+      { stars: world.stars.far, color: '#5f7fc9' },
+      { stars: world.stars.mid, color: '#9fd8ff' },
+      { stars: world.stars.near, color: '#e6f4ff' },
+    ];
+    for (const layer of layers) {
+      for (const star of layer.stars) {
+        const twinkle = 0.35 + 0.3 * Math.sin(star.phase * 2);
+        ctx.globalAlpha = twinkle;
+        ctx.fillStyle = layer.color;
+        ctx.beginPath();
+        ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
 
     ctx.strokeStyle = COLORS.grid;
     ctx.lineWidth = 1;
@@ -125,6 +163,212 @@ export function createRenderer(canvas) {
     ctx.restore();
   }
 
+  // A chaser drone: a sharp dart that points where it is heading, its eye
+  // pulsing faster the closer it gets to its prey.
+  function drawChaser(chaser) {
+    ctx.save();
+    ctx.translate(chaser.x, chaser.y);
+    ctx.rotate(chaser.angle);
+    ctx.shadowColor = COLORS.chaser;
+    ctx.shadowBlur = 12;
+    ctx.fillStyle = COLORS.chaser;
+    ctx.beginPath();
+    ctx.moveTo(chaser.radius + 6, 0);
+    ctx.lineTo(-chaser.radius, -chaser.radius * 0.8);
+    ctx.lineTo(-chaser.radius * 0.4, 0);
+    ctx.lineTo(-chaser.radius, chaser.radius * 0.8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    const eye = 0.5 + 0.5 * Math.sin(chaser.pulse);
+    ctx.fillStyle = COLORS.chaserCore;
+    ctx.beginPath();
+    ctx.arc(2, 0, 2.5 + eye * 1.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // A spinner: a big spiked ring rolling across the field.
+  function drawSpinner(spinner) {
+    ctx.save();
+    ctx.translate(spinner.x, spinner.y);
+    ctx.rotate(spinner.angle);
+    ctx.strokeStyle = COLORS.spinnerCore;
+    ctx.lineWidth = 2.5;
+    ctx.shadowColor = COLORS.spinner;
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    const spikes = 12;
+    for (let i = 0; i < spikes; i += 1) {
+      const a = (i / spikes) * Math.PI * 2;
+      ctx.moveTo(Math.cos(a) * (spinner.radius - 4), Math.sin(a) * (spinner.radius - 4));
+      ctx.lineTo(Math.cos(a) * (spinner.radius + 8), Math.sin(a) * (spinner.radius + 8));
+    }
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 0, spinner.radius - 4, 0, Math.PI * 2);
+    ctx.strokeStyle = COLORS.spinner;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = COLORS.spinnerCore;
+    ctx.beginPath();
+    ctx.arc(0, 0, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // A splitter: a fat purple mine with a bright split core. It flashes in
+  // its last second and a half, warning that it is about to burst.
+  function drawSplitter(splitter) {
+    const aboutToSplit = splitter.age > 4.5;
+    const flash = aboutToSplit ? 0.6 + 0.4 * Math.sin(splitter.age * 14) : 1;
+    ctx.save();
+    ctx.globalAlpha = flash;
+    ctx.translate(splitter.x, splitter.y);
+    ctx.rotate(splitter.angle);
+    ctx.fillStyle = '#2d1b4e';
+    ctx.strokeStyle = COLORS.splitterCore;
+    ctx.lineWidth = 2;
+    ctx.shadowColor = COLORS.splitter;
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    const spikes = 8;
+    for (let i = 0; i < spikes; i += 1) {
+      const a = (i / spikes) * Math.PI * 2;
+      const tip = splitter.radius + 6;
+      const base = splitter.radius - 2;
+      const a2 = a + (Math.PI / spikes) * 0.6;
+      ctx.moveTo(Math.cos(a) * base, Math.sin(a) * base);
+      ctx.lineTo(Math.cos(a) * tip, Math.sin(a) * tip);
+      ctx.lineTo(Math.cos(a2) * base, Math.sin(a2) * base);
+    }
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 0, splitter.radius - 2, 0, Math.PI * 2);
+    ctx.fillStyle = '#3d2066';
+    ctx.fill();
+    ctx.stroke();
+    // The crack down the middle: this one is going to come apart.
+    ctx.beginPath();
+    ctx.moveTo(-6, -8);
+    ctx.lineTo(-2, -2);
+    ctx.lineTo(-5, 3);
+    ctx.lineTo(1, 8);
+    ctx.strokeStyle = COLORS.splitterCore;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 0, 4, 0, Math.PI * 2);
+    ctx.fillStyle = COLORS.splitterCore;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawMini(mini) {
+    ctx.save();
+    ctx.translate(mini.x, mini.y);
+    ctx.rotate(mini.angle);
+    ctx.fillStyle = '#2a0e2e';
+    ctx.strokeStyle = COLORS.mini;
+    ctx.lineWidth = 1.5;
+    ctx.shadowColor = COLORS.mini;
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    const spikes = 6;
+    for (let i = 0; i < spikes; i += 1) {
+      const a = (i / spikes) * Math.PI * 2;
+      const tip = mini.radius + 5;
+      const base = mini.radius - 2;
+      const a2 = a + (Math.PI / spikes) * 0.6;
+      ctx.moveTo(Math.cos(a) * base, Math.sin(a) * base);
+      ctx.lineTo(Math.cos(a) * tip, Math.sin(a) * tip);
+      ctx.lineTo(Math.cos(a2) * base, Math.sin(a2) * base);
+    }
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 0, mini.radius - 2, 0, Math.PI * 2);
+    ctx.fillStyle = '#3d1226';
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawPowerupIcon(powerup, x, y) {
+    const color = COLORS[powerup.kind === 'slowmo' ? 'slowmo' : powerup.kind === 'life' ? 'extralife' : powerup.kind];
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = 2;
+    if (powerup.kind === 'shield') {
+      // A little shield outline.
+      ctx.beginPath();
+      ctx.moveTo(x, y - 6);
+      ctx.lineTo(x + 5, y - 4);
+      ctx.lineTo(x + 5, y + 1);
+      ctx.quadraticCurveTo(x + 5, y + 5, x, y + 7);
+      ctx.quadraticCurveTo(x - 5, y + 5, x - 5, y + 1);
+      ctx.lineTo(x - 5, y - 4);
+      ctx.closePath();
+      ctx.stroke();
+    } else if (powerup.kind === 'magnet') {
+      // A horseshoe magnet.
+      ctx.beginPath();
+      ctx.arc(x, y - 1, 5, Math.PI, 0);
+      ctx.moveTo(x - 5, y - 1);
+      ctx.lineTo(x - 5, y + 4);
+      ctx.moveTo(x + 5, y - 1);
+      ctx.lineTo(x + 5, y + 4);
+      ctx.stroke();
+    } else if (powerup.kind === 'slowmo') {
+      // A clock face with two hands.
+      ctx.beginPath();
+      ctx.arc(x, y, 6, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x, y - 4);
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + 3, y + 1);
+      ctx.stroke();
+    } else {
+      // A heart.
+      ctx.beginPath();
+      ctx.moveTo(x, y + 5);
+      ctx.bezierCurveTo(x - 7, y - 1, x - 4, y - 6, x, y - 2);
+      ctx.bezierCurveTo(x + 4, y - 6, x + 7, y - 1, x, y + 5);
+      ctx.fill();
+    }
+  }
+
+  function drawPowerup(powerup) {
+    const bob = Math.sin(powerup.age * 3) * 3;
+    const y = powerup.y + bob;
+    const fade = powerup.age > powerup.lifetime - 3
+      ? (Math.floor(powerup.age * 6) % 2 === 0 ? 1 : 0.35)
+      : 1;
+    const color = COLORS[powerup.kind === 'slowmo' ? 'slowmo' : powerup.kind === 'life' ? 'extralife' : powerup.kind];
+    const label = powerup.kind === 'slowmo' ? 'SLOW-MO' : powerup.kind.toUpperCase();
+    ctx.save();
+    ctx.globalAlpha = fade;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 16;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(powerup.x, y, powerup.radius + 3, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(7, 11, 36, 0.85)';
+    ctx.beginPath();
+    ctx.arc(powerup.x, y, powerup.radius + 3, 0, Math.PI * 2);
+    ctx.fill();
+    drawPowerupIcon(powerup, powerup.x, y);
+    text(label, powerup.x, y + powerup.radius + 12, 10, color);
+    ctx.restore();
+  }
+
   function drawPlayer(world) {
     const p = world.player;
     if (p.invuln > 0 && Math.floor(world.time * 12) % 2 === 0) return;
@@ -145,6 +389,16 @@ export function createRenderer(canvas) {
     ctx.beginPath();
     ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
     ctx.fill();
+    // The shield ring: a bright shell around the orb while it lasts.
+    if (world.shieldTimer > 0) {
+      ctx.strokeStyle = COLORS.shield;
+      ctx.lineWidth = 2.5;
+      ctx.shadowColor = COLORS.shield;
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.radius + 11, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     ctx.restore();
   }
 
@@ -156,6 +410,15 @@ export function createRenderer(canvas) {
       ctx.beginPath();
       ctx.arc(particle.x, particle.y, particle.size * left + 0.5, 0, Math.PI * 2);
       ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawFloaters(world) {
+    for (const floater of world.floaters) {
+      const left = 1 - floater.life / floater.maxLife;
+      ctx.globalAlpha = Math.max(0, left);
+      text(floater.text, floater.x, floater.y, floater.size, floater.color);
     }
     ctx.globalAlpha = 1;
   }
@@ -175,10 +438,26 @@ export function createRenderer(canvas) {
     } else if (world.chain > 0) {
       text(`CHAIN ${world.chain}`, 24, 58, 16, COLORS.dimText, 'left');
     }
+    // Active power-up chips, under the score.
+    const chips = [];
+    if (world.shieldTimer > 0) chips.push({ label: `SHIELD ${Math.ceil(world.shieldTimer)}s`, color: COLORS.shield });
+    if (world.magnetTimer > 0) chips.push({ label: `MAGNET ${Math.ceil(world.magnetTimer)}s`, color: COLORS.magnet });
+    if (world.slowTimer > 0) chips.push({ label: `SLOW-MO ${Math.ceil(world.slowTimer)}s`, color: COLORS.slowmo });
+    let chipX = 24;
+    for (const chip of chips) {
+      const width = 12 + chip.label.length * 7.5;
+      panel(chipX, 84, width, 20, 10, 'rgba(4, 7, 24, 0.7)');
+      ctx.fillStyle = chip.color;
+      ctx.beginPath();
+      ctx.arc(chipX + 11, 94, 4, 0, Math.PI * 2);
+      ctx.fill();
+      text(chip.label, chipX + 20, 94, 12, chip.color, 'left');
+      chipX += width + 8;
+    }
     // Wave, top centre.
     text(`WAVE ${Math.min(world.wave, 10)} / 10`, VIEW.width / 2, 30, 20, COLORS.dimText);
-    // Lives, top right.
-    for (let i = 0; i < 3; i += 1) {
+    // Lives, top right — one heart per life, up to the v2 maximum of four.
+    for (let i = 0; i < PLAYER.maxLives; i += 1) {
       const x = VIEW.width - 30 - i * 30;
       ctx.beginPath();
       ctx.arc(x, 30, 9, 0, Math.PI * 2);
@@ -203,11 +482,13 @@ export function createRenderer(canvas) {
     ctx.fillStyle = COLORS.shard;
     panel(barX, barY, barWidth * fill, 8, 4, COLORS.shard);
     text(`${world.score} / ${SCORE_TARGET} LUMEN`, VIEW.width / 2, 74, 13, COLORS.dimText);
-    // Dash cooldown, bottom left.
+    // Dash cooldown, bottom left. The footer sits on a solid panel now, so
+    // no enemy can ever drift over the hints again (v1's screenshot wart).
+    panel(16, VIEW.height - 36, VIEW.width - 32, 28, 8, 'rgba(4, 7, 24, 0.85)');
     const cooldown = Math.max(0, world.player.dashCooldown);
     const ready = cooldown <= 0;
-    text(ready ? 'DASH READY  [SPACE / CLICK]' : `DASH ${cooldown.toFixed(1)}s`, 24, VIEW.height - 24, 14, ready ? COLORS.good : COLORS.dimText, 'left');
-    text('P PAUSE   ·   R RESTART   ·   M MUTE', VIEW.width - 24, VIEW.height - 24, 13, COLORS.dimText, 'right');
+    text(ready ? 'DASH READY  [SPACE / CLICK]' : `DASH ${cooldown.toFixed(1)}s`, 24, VIEW.height - 22, 14, ready ? COLORS.good : COLORS.dimText, 'left');
+    text('P PAUSE   ·   R RESTART   ·   M MUTE', VIEW.width - 24, VIEW.height - 22, 13, COLORS.dimText, 'right');
     // Wave banner.
     if (world.banner > 0) {
       ctx.globalAlpha = Math.min(1, world.banner);
@@ -219,18 +500,21 @@ export function createRenderer(canvas) {
   function drawTitle(world, best) {
     ctx.fillStyle = 'rgba(4, 7, 24, 0.72)';
     ctx.fillRect(0, 0, VIEW.width, VIEW.height);
-    text('LUMEN DRIFT', VIEW.width / 2, 128, 64, COLORS.player);
-    text('Pilot the last light through the dark.', VIEW.width / 2, 180, 20, COLORS.text);
-    text('Collect lumen shards to score. Dodge the void mines.', VIEW.width / 2, 210, 18, COLORS.dimText);
-    text('Chain pickups for a combo multiplier. Dash through danger.', VIEW.width / 2, 236, 18, COLORS.dimText);
-    text(`Reach ${SCORE_TARGET} lumen or clear wave 10 to win. You have 3 lives.`, VIEW.width / 2, 262, 18, COLORS.dimText);
-    text('MOVE  mouse or WASD / arrows      DASH  Space or click', VIEW.width / 2, 316, 17, COLORS.shard);
-    text('PAUSE  P      RESTART  R      MUTE  M', VIEW.width / 2, 344, 17, COLORS.shard);
+    text('LUMEN DRIFT', VIEW.width / 2, 120, 64, COLORS.player);
+    text('Pilot the last light through the dark.', VIEW.width / 2, 172, 20, COLORS.text);
+    text('Collect lumen shards to score. Dodge the void mines.', VIEW.width / 2, 200, 18, COLORS.dimText);
+    text('Chain pickups for a combo multiplier. Dash through danger.', VIEW.width / 2, 224, 18, COLORS.dimText);
+    text(`Reach ${SCORE_TARGET} lumen or clear wave 10 to win. You have 3 lives.`, VIEW.width / 2, 248, 18, COLORS.dimText);
+    text('NEW IN v2 — chasers, spinners and splitters hunt you now.', VIEW.width / 2, 282, 17, COLORS.shard);
+    text('SHIELD eats one hit  ·  MAGNET pulls shards in', VIEW.width / 2, 308, 16, COLORS.shield);
+    text('SLOW-MO halves every enemy  ·  +1 LIFE tops you up', VIEW.width / 2, 330, 16, COLORS.slowmo);
+    text('MOVE  mouse or WASD / arrows      DASH  Space or click', VIEW.width / 2, 372, 17, COLORS.shard);
+    text('PAUSE  P      RESTART  R      MUTE  M', VIEW.width / 2, 398, 17, COLORS.shard);
     const blink = 0.6 + 0.4 * Math.sin(world.time * 3);
     ctx.globalAlpha = blink;
-    text('CLICK OR PRESS ANY KEY TO START', VIEW.width / 2, 420, 22, COLORS.good);
+    text('CLICK OR PRESS ANY KEY TO START', VIEW.width / 2, 446, 22, COLORS.good);
     ctx.globalAlpha = 1;
-    if (best > 0) text(`BEST SCORE  ${best}`, VIEW.width / 2, 462, 16, COLORS.dimText);
+    if (best > 0) text(`BEST SCORE  ${best}`, VIEW.width / 2, 484, 16, COLORS.dimText);
   }
 
   function drawPaused() {
@@ -262,8 +546,16 @@ export function createRenderer(canvas) {
       drawBackground(world);
       if (world.status !== 'title') {
         for (const shard of world.shards) drawShard(shard);
-        for (const mine of world.mines) drawMine(mine);
+        for (const powerup of world.powerups) drawPowerup(powerup);
+        for (const enemy of world.enemies) {
+          if (enemy.kind === 'mine') drawMine(enemy);
+          else if (enemy.kind === 'chaser') drawChaser(enemy);
+          else if (enemy.kind === 'spinner') drawSpinner(enemy);
+          else if (enemy.kind === 'splitter') drawSplitter(enemy);
+          else drawMini(enemy);
+        }
         drawParticles(world);
+        drawFloaters(world);
         if (world.player.lives > 0) drawPlayer(world);
         drawHud(world);
       }

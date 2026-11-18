@@ -1,7 +1,9 @@
-// LUMEN DRIFT — synthesized sound effects.
+// LUMEN DRIFT v2 — synthesized sound effects.
 // Every sound is built from oscillators and filtered noise at run time; the
 // game ships no audio files. The context is created lazily on the first user
-// gesture, because browsers will not let audio start before one.
+// gesture, because browsers will not let audio start before one. v2 adds a
+// rising arpeggio for power-ups, a metallic shimmer for a shield breaking
+// and a low pop for a splitter bursting.
 
 export function createAudio() {
   let context = null;
@@ -91,6 +93,22 @@ export function createAudio() {
     wave() {
       tone({ type: 'triangle', from: 392, duration: 0.12, volume: 0.35 });
       tone({ type: 'triangle', from: 587, duration: 0.16, volume: 0.35, delay: 0.1 });
+    },
+    // A bright three-note rise, the same for every power-up kind.
+    powerup() {
+      [660, 880, 1320].forEach((note, i) => {
+        tone({ type: 'sine', from: note, duration: 0.14, volume: 0.35, delay: i * 0.07 });
+      });
+    },
+    // A metallic shimmer as the shield shell shatters.
+    shieldBreak() {
+      tone({ type: 'square', from: 1560, to: 220, duration: 0.18, volume: 0.22 });
+      noise({ duration: 0.14, volume: 0.2, from: 4200, to: 1800 });
+    },
+    // A low pop as a splitter comes apart into minis.
+    split() {
+      tone({ type: 'sine', from: 320, to: 90, duration: 0.16, volume: 0.4 });
+      noise({ duration: 0.1, volume: 0.18, from: 700, to: 200 });
     },
     win() {
       [523, 659, 784, 1047].forEach((note, i) => {
